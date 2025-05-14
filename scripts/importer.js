@@ -14,9 +14,6 @@ Hooks.on('renderItemDirectory', (app, html) => {
     new FilePicker({
       type: 'data',
       current: '',
-      title: 'Select Whale JSON File',
-      button: 'Import',
-      filters: ['*.json'],
       callback: async (path) => {
         if (!path) return;
         try {
@@ -27,6 +24,11 @@ Hooks.on('renderItemDirectory', (app, html) => {
           console.error(err);
           ui.notifications.error(`Whale Importer | ${err.message}`);
         }
+      },
+      title: 'Select Whale JSON File',
+      button: 'Import',
+      filters: {
+        json: ['json']
       }
     }).render(true);
   });
