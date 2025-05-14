@@ -1,58 +1,60 @@
-export function registerImporter() {
-  // Add a button to the Actors directory header
-  const dir = ui.actors;
-  const header = dir.element.find('.directory-header')[0];
-  const btn = document.createElement('button');
-  btn.type = 'button';
-  btn.innerHTML = '<i class="fas fa-file-import"></i> JSON Import';
-  btn.addEventListener('click', () => new ImportDialog().render(true));
-  header.append(btn);
-}
+Hooks.once('init', () => {
+  console.log('Whale Importer | Initializing module for Foundry V11');
+});
 
-class ImportDialog extends Dialog {
-  constructor() {
-    super({
-      title: 'Import Cyberpunk RED Statblocks',
-      content: `<form>
-        <div class="form-group">
-          <label>Paste JSON:</label>
-          <textarea name="json" style="width:100%;height:200px"></textarea>
-        </div>
-      </form>`,
-      buttons: {
-        import: { label: 'Import', callback: html => this._onImport(html) },
-        cancel: { label: 'Cancel' }
-      }
-    });
-  }
-
-  async _onImport(html) {
-    const raw = html.find('[name=json]').val();
-    let data;
+Hooks.on('renderItemDirectory', (app, html) => {
+  // Add Import button to the Items Directory
+  const importButton = $(
+    `<button class="whale-importer-button" title="Import items from Whale JSON">
+       <i class="fas fa-file-import"></i> Import Whale JSON
+     </button>`
+  );
+  importButton.css({ marginLeft: '8px' });
+  importButton.on('click', async () => {
     try {
-      data = JSON.parse(raw);
+      const fp = await FilePicker.prompt({
+        type: 'data',
+        current: '',
+        label: 'Select Whale JSON File',
+        button: 'Import',
+        wildcards: ['*.json']
+      });
+      if (!fp) return;
+      const response = await fetch(fp);
+      const jsonData = await response.json();
+      await processWhaleJSON(jsonData);
     } catch (err) {
-      return ui.notifications.error('Invalid JSON');
+      console.error(err);
+      ui.notifications.error(`Whale Importer | ${err.message}`);
     }
-    if (!Array.isArray(data)) data = [data];
+  });
+  html.find('.directory-footer').append(importButton);
+});
 
-    for (const entry of data) {
-      const { entityType, type, name, img, data: payload } = entry;
-      const createData = { name, type, img, data: payload };
-      switch (entityType) {
-        case 'Item':
-          await Item.create(createData, { temporary: false });
-          break;
-        case 'Actor':
-          await Actor.create(createData, { temporary: false });
-          break;
-        case 'RollTable':
-          await RollTable.create(createData, { temporary: false });
-          break;
-        default:
-          console.warn('Unknown entityType:', entityType);
-      }
+/**
+ * Iterate over Whale JSON entries and create Foundry items using the system data model
+ * @param {Array} data - Parsed JSON array from The Whale Importer GPT
+ */
+async function processWhaleJSON(data) {
+  if (!Array.isArray(data)) {
+    return ui.notifications.error('Whale Importer | JSON must be an array.');
+  }
+  for (const entry of data) {
+    if (entry.entityType !== 'Item') continue;
+    const { type, name, data: itemData } = entry;
+    if (!type || !name || !itemData) continue;
+    try {
+      // Build item payload compatible with Foundry V11 (system property)
+      const itemPayload = {
+        name,
+        type,
+        system: itemData
+      };
+      await Item.create(itemPayload);
+      ui.notifications.info(`Whale Importer | Imported ${name}`);
+    } catch (err) {
+      console.error(err);
+      ui.notifications.error(`Whale Importer | Failed to import ${name}: ${err.message}`);
     }
-    ui.notifications.info(`Imported ${data.length} entries`);
   }
 }
