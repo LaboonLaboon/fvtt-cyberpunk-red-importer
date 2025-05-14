@@ -10,23 +10,25 @@ Hooks.on('renderItemDirectory', (app, html) => {
      </button>`
   );
   importButton.css({ marginLeft: '8px' });
-  importButton.on('click', async () => {
-    try {
-      const fp = await FilePicker.prompt({
-        type: 'data',
-        current: '',
-        label: 'Select Whale JSON File',
-        button: 'Import',
-        wildcards: ['*.json']
-      });
-      if (!fp) return;
-      const response = await fetch(fp);
-      const jsonData = await response.json();
-      await processWhaleJSON(jsonData);
-    } catch (err) {
-      console.error(err);
-      ui.notifications.error(`Whale Importer | ${err.message}`);
-    }
+  importButton.on('click', () => {
+    new FilePicker({
+      type: 'data',
+      current: '',
+      title: 'Select Whale JSON File',
+      button: 'Import',
+      filters: ['*.json'],
+      callback: async (path) => {
+        if (!path) return;
+        try {
+          const response = await fetch(path);
+          const jsonData = await response.json();
+          await processWhaleJSON(jsonData);
+        } catch (err) {
+          console.error(err);
+          ui.notifications.error(`Whale Importer | ${err.message}`);
+        }
+      }
+    }).render(true);
   });
   html.find('.directory-footer').append(importButton);
 });
@@ -44,7 +46,6 @@ async function processWhaleJSON(data) {
     const { type, name, data: itemData } = entry;
     if (!type || !name || !itemData) continue;
     try {
-      // Build item payload compatible with Foundry V11 (system property)
       const itemPayload = {
         name,
         type,
