@@ -14,6 +14,11 @@ Hooks.on('renderItemDirectory', (app, html) => {
     new FilePicker({
       type: 'data',
       current: '',
+      title: 'Select Whale JSON File',
+      button: 'Import',
+      filters: [
+        { label: 'JSON Files', extensions: ['json'] }
+      ],
       callback: async (path) => {
         if (!path) return;
         try {
@@ -24,14 +29,10 @@ Hooks.on('renderItemDirectory', (app, html) => {
           console.error(err);
           ui.notifications.error(`Whale Importer | ${err.message}`);
         }
-      },
-      title: 'Select Whale JSON File',
-      button: 'Import',
-      filters: {
-        json: ['json']
       }
     }).render(true);
   });
+  // Append the button to the directory footer in V11
   html.find('.directory-footer').append(importButton);
 });
 
