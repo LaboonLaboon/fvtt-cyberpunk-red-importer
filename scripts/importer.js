@@ -16,7 +16,7 @@ Hooks.on('renderItemDirectory', (app, html) => {
       current: '',
       title: 'Select Whale JSON File',
       button: 'Import',
-      filters: [ { label: 'JSON Files', extensions: ['json'] } ],
+      filters: [{ label: 'JSON Files', extensions: ['json'] }],
       callback: async (path) => {
         if (!path) return;
         try {
@@ -34,41 +34,26 @@ Hooks.on('renderItemDirectory', (app, html) => {
 });
 
 /**
- * Iterate over Whale JSON entries and create Foundry items using the system data model,
- * then patch in any additional weapon fields that might be nested or require explicit updates.
+ * Iterate over Whale JSON entries and create Foundry items using both `system` and `data` keys for maximum compatibility.
  * @param {Array} data - Parsed JSON array from The Whale Importer GPT
  */
 async function processWhaleJSON(data) {
-  if (!Array.isArray(data)) return ui.notifications.error('Whale Importer | JSON must be an array.');
-
+  if (!Array.isArray(data)) {
+    return ui.notifications.error('Whale Importer | JSON must be an array.');
+  }
   for (const entry of data) {
     if (entry.entityType !== 'Item') continue;
     const { type, name, data: itemData } = entry;
     if (!type || !name || !itemData) continue;
     try {
-      // Create the item with base system data
-      const created = await Item.create({ name, type, system: itemData });
+      // Build a payload that sets both `system` and `data` to the imported values
+      const payload = { name, type };
+      payload.system = duplicate(itemData);
+      payload.data   = duplicate(itemData);
 
-      // For weapons, explicitly patch common fields that may not map directly
-      if (type === 'weapon') {
-        const patch = {};
-        const fields = {
-          magazine: 'magazine',
-          loadedAmmo: 'loadedAmmo',
-          ammoType: 'ammoType',
-          autofire: 'autofire',
-          suppressive: 'suppressive',
-          conceal: 'conceal',
-          price: 'price',
-          handsRequired: 'handsRequired'
-        };
-        for (const [jsonKey, sysKey] of Object.entries(fields)) {
-          if (itemData[jsonKey] !== undefined) patch[`system.${sysKey}`] = itemData[jsonKey];
-        }
-        if (Object.keys(patch).length) {
-          await created.update(patch);
-        }
-      }
+      // Create the item
+      const created = await Item.create(payload);
+      console.log('Whale Importer | Created item system data:', created.system);
 
       ui.notifications.info(`Whale Importer | Imported ${name}`);
     } catch (err) {
@@ -76,4 +61,11 @@ async function processWhaleJSON(data) {
       ui.notifications.error(`Whale Importer | Failed to import ${name}: ${err.message}`);
     }
   }
+}
+
+/**
+ * Utility to deep-clone an object (to avoid sharing references)
+ */
+function duplicate(obj) {
+  return JSON.parse(JSON.stringify(obj));
 }
